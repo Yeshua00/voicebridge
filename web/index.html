@@ -625,28 +625,6 @@ a[href="/echo"]:hover {
 .sensitivity-row .sens-label { color: #887700; font-size: 0.6rem; letter-spacing: 0.5px; }
 .sensitivity-row .sens-val { min-width: 30px; text-align: center; color: #00ff41; font-size: 0.75rem; }
 
-/* ── Tap ripple / gradient pulse ── */
-.ripple {
-  position: fixed;
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(0, 255, 65, 0.15) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 9998;
-  animation: ripple-expand 0.6s ease-out forwards;
-}
-
-@keyframes ripple-expand {
-  0% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 0.5;
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(60);
-    opacity: 0;
-  }
-}
-
 /* ── Landscape / horizontal orientation ── */
 @media (orientation: landscape) {
   body {
@@ -1393,18 +1371,6 @@ mouseContentInner.addEventListener('touchend', (e) => {
     body: JSON.stringify({ button: 'left' }),
   }).catch(() => {});
 }, { passive: false });
-
-// ── Radar pulse ripple on tap ──
-document.addEventListener('touchstart', (e) => {
-  const touch = e.touches[0];
-  if (!touch) return;
-  const ripple = document.createElement('div');
-  ripple.className = 'ripple';
-  ripple.style.left = touch.clientX + 'px';
-  ripple.style.top = touch.clientY + 'px';
-  document.body.appendChild(ripple);
-  setTimeout(() => ripple.remove(), 700);
-}, { passive: true });
 
 // ── Screen Wake Lock — keeps screen on (always active) ──
 let wakeLock = null;
