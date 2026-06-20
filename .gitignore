@@ -1,5 +1,11 @@
 .venv/
 .certs/
+.models/
+.whisper-src/
+.whisper.log
 __pycache__/
 *.pyc
 .DS_Store
+cert.pem
+key.pem
+*.bak
