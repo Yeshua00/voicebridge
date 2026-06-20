@@ -7,11 +7,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="C0D3.5P34K">
 <meta name="theme-color" content="#0a0a0f">
-<link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png">
-<link rel="apple-touch-icon-precomposed" href="/icon-180.png">
-<link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="apple-touch-icon-precomposed" href="icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
 <title>C0D3.5P34K</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
@@ -851,7 +851,7 @@ function micState(state, overlay) {
 
 async function checkHealth() {
   try {
-    let r = await fetch(`${BRIDGE_URL}/health`, { signal: AbortSignal.timeout(3000) });
+    let r = await fetch(`health`, { signal: AbortSignal.timeout(3000) });
     let data = await r.json();
     serverBadge.textContent = data.opencode ? "opencode ✓" : "opencode ✗";
     serverBadge.className = "badge" + (data.opencode ? " on" : "");
@@ -931,7 +931,7 @@ async function transcribe(blob) {
   try {
     let formData = new FormData();
     formData.append("file", blob, "recording.webm");
-    let r = await fetch(`/transcribe`, {
+    let r = await fetch(`transcribe`, {
       method: "POST", body: formData, signal: AbortSignal.timeout(30000)
     });
     let text = "", err = "";
@@ -971,7 +971,7 @@ async function transcribe(blob) {
 async function sendToPaste(text) {
   setPaste("Copying to clipboard...");
   try {
-    let r = await fetch(`/paste`, {
+    let r = await fetch(`paste`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
@@ -1020,7 +1020,7 @@ async function interrupt() {
   abortBtn.disabled = true;
   abortBtn.textContent = "...";
   try {
-    let r = await fetch(`/interrupt`, { method: "POST", signal: AbortSignal.timeout(5000) });
+    let r = await fetch(`interrupt`, { method: "POST", signal: AbortSignal.timeout(5000) });
     let j = await r.json();
     setStatus(j.ok ? "Escape sent" : "Interrupt failed", j.ok ? "success" : "error");
   } catch(e) {
@@ -1273,14 +1273,14 @@ trackpadEl.addEventListener('touchmove', (e) => {
 
   if (e.touches.length >= 2) {
     // Two-finger swipe = scroll
-    fetch('/mouse-scroll', {
+    fetch('mouse-scroll', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dy: Math.round(dy) }),
     }).catch(() => {});
   } else {
     // One-finger drag = mouse move
-    fetch('/mouse-move', {
+    fetch('mouse-move', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dx: Math.round(dx), dy: Math.round(dy) }),
@@ -1294,7 +1294,7 @@ trackpadEl.addEventListener('touchend', (e) => {
 
   if (!tpMoved) {
     // Quick tap → click
-    fetch('/mouse-click', {
+    fetch('mouse-click', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ button: 'left' }),
@@ -1315,7 +1315,7 @@ clickBtn.addEventListener('touchstart', (e) => {
   clickTimer = setTimeout(() => {
     isDragging = true;
     clickBtn.classList.add('dragging');
-    fetch('/mouse-down', { method: 'POST' }).catch(() => {});
+    fetch('mouse-down', { method: 'POST' }).catch(() => {});
   }, 500);
 }, { passive: false });
 
@@ -1325,9 +1325,9 @@ clickBtn.addEventListener('touchend', (e) => {
   if (isDragging) {
     isDragging = false;
     clickBtn.classList.remove('dragging');
-    fetch('/mouse-up', { method: 'POST' }).catch(() => {});
+    fetch('mouse-up', { method: 'POST' }).catch(() => {});
   } else {
-    fetch('/mouse-click', {
+    fetch('mouse-click', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ button: 'left' }),
@@ -1340,14 +1340,14 @@ clickBtn.addEventListener('touchcancel', () => {
   if (isDragging) {
     isDragging = false;
     clickBtn.classList.remove('dragging');
-    fetch('/mouse-up', { method: 'POST' }).catch(() => {});
+    fetch('mouse-up', { method: 'POST' }).catch(() => {});
   }
 });
 
 // Mouse click fallback for desktop testing (guard against touch double-fire)
 clickBtn.addEventListener('click', () => {
   if (touchFired) { touchFired = false; return; }
-  fetch('/mouse-click', {
+  fetch('mouse-click', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ button: 'left' }),
@@ -1358,7 +1358,7 @@ clickBtn.addEventListener('click', () => {
 rclickBtn.addEventListener('touchstart', (e) => {
   e.preventDefault();
   touchFired = true;
-  fetch('/mouse-click', {
+  fetch('mouse-click', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ button: 'right' }),
@@ -1367,7 +1367,7 @@ rclickBtn.addEventListener('touchstart', (e) => {
 
 rclickBtn.addEventListener('click', () => {
   if (touchFired) { touchFired = false; return; }
-  fetch('/mouse-click', {
+  fetch('mouse-click', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ button: 'right' }),
@@ -1380,7 +1380,7 @@ mouseContentInner.addEventListener('touchend', (e) => {
   // Don't interfere with buttons, sensitivity controls, or trackpad
   if (e.target.closest('button, .trackpad, .sensitivity-row')) return;
   e.preventDefault();
-  fetch('/mouse-click', {
+  fetch('mouse-click', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ button: 'left' }),
