@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="C0D3.5P34K">
+<meta name="theme-color" content="#0a0a0f">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
+<title>C0D3.5P34K</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'SF Mono', Menlo, Monaco, 'Courier New', monospace;
+  background: linear-gradient(to bottom, #000000 0%, #0a0a0f 100%);
+  color: #00ff41;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 20px;
+  position: relative;
+}
+
+/* Full-viewport scanline overlay — subtle CRT vibe */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 65, 0.04) 2px,
+    rgba(0, 255, 65, 0.04) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.container {
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 40px);
+  overflow: hidden;
+  padding: 12px 0 16px;
+}
+
+/* ── Mic wrapper ── */
+.mic-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.mic-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: auto;
+  margin-bottom: auto;
+  position: relative;
+}
+
+/* ── Spacing bumpers ── */
+.mouse-section {
+  margin-bottom: 24px;
+}
+
+.abort-btn {
+  margin-bottom: 4px;
+}
+
+/* ── Gyroscope Shine Layer ── */
+.shine {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(80, 255, 140, 0.12) 0%,
+      rgba(40, 200, 100, 0.04) 25%,
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(0, 255, 65, 0.03) 0%,
+      transparent 40%
+    );
+  pointer-events: none;
+  z-index: 0;
+  will-change: background;
+}
+
+/* ── Passive scan lines (scrolling top→bottom) ── */
+.scan-lines {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 8px,
+    rgba(0, 255, 65, 0.025) 8px,
+    rgba(0, 255, 65, 0.025) 10px
+  );
+  background-size: 100% 20px;
+  animation: scan-scroll 12s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes scan-scroll {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 20px; }
+}
+
+/* ── Radar sweep line (texture modifier, blends with background) ── */
+.radar-sweep {
+  position: fixed;
+  left: 0; right: 0;
+  height: 120px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 255, 65, 0.0) 15%,
+    rgba(0, 255, 65, 0.06) 35%,
+    rgba(0, 255, 65, 0.12) 50%,
+    rgba(0, 255, 65, 0.06) 65%,
+    rgba(0, 255, 65, 0.0) 85%,
+    transparent 100%
+  );
+  mix-blend-mode: overlay;
+  animation: radar-sweep 6s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes radar-sweep {
+  0% { top: -120px; }
+  100% { top: 100vh; }
+}
+
+/* ── Radar pulse rings (gradient overlay, breathes behind mic) ── */
+.radar-rings {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 340px; height: 340px;
+  margin: -170px 0 0 -170px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(0, 255, 65, 0.08) 0%,
+    transparent 25%,
+    rgba(0, 255, 65, 0.04) 40%,
+    transparent 60%,
+    rgba(0, 255, 65, 0.02) 75%,
+    transparent 100%
+  );
+  mix-blend-mode: overlay;
+  animation: rings-pulse 8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes rings-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.15;
+  }
+}
+
+/* Subtle neon grid pattern behind content */
+.container::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image:
+    linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+h1 {
+  font-family: 'VT323', 'SF Mono', Menlo, Monaco, monospace;
+  font-size: 2.4rem;
+  margin-bottom: 2px;
+  color: #00ff41;
+  letter-spacing: 0;
+  text-transform: none;
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.25);
+}
+
+.subtitle {
+  color: #ffcc00;
+  font-size: 0.75rem;
+  margin-bottom: 30px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ── Mic Button ── */
+.mic-btn {
+  width: 140px;
+  height: 140px;
+  border-radius: 70px;
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  background: rgba(10, 10, 15, 0.55);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #00ff41;
+  font-size: 3.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin: 10px auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow:
+    0 0 15px rgba(0, 255, 65, 0.12),
+    0 0 30px rgba(0, 255, 65, 0.04),
+    inset 0 0 15px rgba(0, 255, 65, 0.04);
+}
+
+.mic-btn:active {
+  transform: scale(0.95);
+}
+
+/* Shrink mic button when mouse trackpad is open */
+.container:has(.mouse-content.expanded) .mic-btn {
+  width: 110px;
+  height: 110px;
+  border-radius: 55px;
+  font-size: 2.8rem;
+}
+.container:has(.mouse-content.expanded) .mic-svg {
+  width: 55px;
+  height: 55px;
+}
+
+/* Outer neon glow ring */
+.mic-btn::before {
+  content: '';
+  position: absolute;
+  top: -3px; left: -3px; right: -3px; bottom: -3px;
+  border-radius: 73px;
+  border: 1px solid rgba(0, 255, 65, 0.1);
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+/* ── Recording state ── */
+.mic-btn.recording {
+  border-color: rgba(255, 51, 85, 0.5);
+  background: rgba(15, 0, 15, 0.55);
+  color: #ff3355;
+  box-shadow:
+    0 0 20px rgba(255, 51, 85, 0.25),
+    0 0 40px rgba(255, 51, 85, 0.1),
+    0 0 60px rgba(255, 51, 85, 0.04),
+    inset 0 0 20px rgba(255, 51, 85, 0.06);
+  animation: glow-pulse 1.2s ease-in-out infinite;
+}
+
+.mic-btn.recording::before {
+  border-color: rgba(255, 51, 85, 0.25);
+  box-shadow: 0 0 8px rgba(255, 51, 85, 0.15);
+  animation: ring-glow 1.2s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 20px rgba(255, 51, 85, 0.25),
+      0 0 40px rgba(255, 51, 85, 0.1),
+      0 0 60px rgba(255, 51, 85, 0.04),
+      inset 0 0 20px rgba(255, 51, 85, 0.06);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow:
+      0 0 30px rgba(255, 51, 85, 0.4),
+      0 0 60px rgba(255, 51, 85, 0.18),
+      0 0 80px rgba(255, 51, 85, 0.08),
+      inset 0 0 30px rgba(255, 51, 85, 0.1);
+  }
+}
+
+@keyframes ring-glow {
+  0%, 100% {
+    border-color: rgba(255, 51, 85, 0.25);
+    box-shadow: 0 0 8px rgba(255, 51, 85, 0.15);
+  }
+  50% {
+    border-color: rgba(255, 51, 85, 0.5);
+    box-shadow: 0 0 15px rgba(255, 51, 85, 0.35);
+  }
+}
+
+/* ── Error state ── */
+.mic-btn.error {
+  border-color: rgba(255, 51, 85, 0.5);
+  background: rgba(20, 0, 0, 0.55);
+  color: #ff3355;
+  box-shadow:
+    0 0 20px rgba(255, 51, 85, 0.25),
+    0 0 40px rgba(255, 51, 85, 0.1),
+    inset 0 0 20px rgba(255, 51, 85, 0.06);
+}
+
+/* ── SVG mic icon ── */
+.mic-svg {
+  width: 70px;
+  height: 70px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  position: absolute;
+  filter: drop-shadow(0 0 4px currentColor);
+  transition: filter 0.3s ease;
+}
+
+.mic-btn.recording .mic-svg {
+  filter: drop-shadow(0 0 6px #ff3355) drop-shadow(0 0 12px rgba(255, 51, 85, 0.4));
+}
+
+.mic-btn.processing .mic-svg {
+  display: none;
+}
+
+.mic-btn.processing .mic-overlay {
+  display: block;
+}
+
+.mic-btn.error .mic-svg {
+  filter: drop-shadow(0 0 6px #ff3355) drop-shadow(0 0 12px rgba(255, 51, 85, 0.4));
+}
+
+/* ── Processing overlay ── */
+.mic-overlay {
+  position: absolute;
+  font-size: 1.4rem;
+  color: #ff3355;
+  display: none;
+  text-shadow: 0 0 8px rgba(255, 51, 85, 0.5);
+}
+
+/* ── Status text ── */
+.status {
+  color: #ffcc00;
+  font-size: 0.85rem;
+  min-height: 1.4em;
+  margin: 8px 0;
+  letter-spacing: 0.5px;
+}
+
+.status.success {
+  color: #00ff41;
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.35);
+}
+
+.status.error {
+  color: #ff3355;
+  text-shadow: 0 0 8px rgba(255, 51, 85, 0.35);
+}
+
+/* ── Paste status ── */
+.paste-status {
+  font-size: 0.75rem;
+  color: #ffcc00;
+  text-shadow: 0 0 4px rgba(255, 204, 0, 0.2);
+  margin-top: 4px;
+  min-height: 1.2em;
+  letter-spacing: 0.3px;
+}
+
+/* ── Badges ── */
+.badge-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 12px;
+  font-size: 0.65rem;
+  background: rgba(10, 10, 15, 0.5);
+  color: #ffcc00;
+  border: 1px solid rgba(255, 204, 0, 0.15);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: all 0.3s ease;
+}
+
+.badge.on {
+  background: rgba(0, 255, 65, 0.06);
+  color: #00ff41;
+  border-color: rgba(0, 255, 65, 0.35);
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.12);
+}
+
+/* ── Test connectivity link ── */
+a[href="/echo"] {
+  color: #ffcc00 !important;
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
+}
+
+a[href="/echo"]:hover {
+  color: #00ff41 !important;
+  text-shadow: 0 0 6px rgba(0, 255, 65, 0.3);
+}
+
+/* ── Abort button ── */
+.abort-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 5px 16px;
+  border: 1px solid rgba(255, 51, 85, 0.4);
+  border-radius: 4px;
+  background: rgba(20, 0, 0, 0.25);
+  color: #ff3355;
+  font-size: 0.7rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: all 0.3s ease;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  box-shadow: 0 0 10px rgba(255, 51, 85, 0.12);
+  animation: abort-pulse 2s ease-in-out infinite;
+}
+
+.abort-btn:active {
+  background: rgba(40, 0, 0, 0.4);
+}
+
+.abort-btn:disabled {
+  opacity: 0.4;
+  animation: none;
+}
+
+@keyframes abort-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(255, 51, 85, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 51, 85, 0.25);
+  }
+}
+
+/* ── Paste History ── */
+.history { width: 100%; overflow-y: auto; margin-bottom: 12px; max-height: 35vh; }
+.history::-webkit-scrollbar { width: 5px; }
+.history::-webkit-scrollbar-track { background: transparent; }
+.history::-webkit-scrollbar-thumb { background: rgba(0, 255, 65, 0.2); border-radius: 3px; }
+.history::-webkit-scrollbar-thumb:hover { background: rgba(0, 255, 65, 0.35); }
+.history-item {
+  padding: 6px 10px; margin-bottom: 4px; border-radius: 4px;
+  font-size: 0.75rem; color: #ffcc00; cursor: pointer;
+  border-left: 2px solid rgba(255, 204, 0, 0.12);
+  transition: all 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  -webkit-tap-highlight-color: transparent;
+}
+.history-item:active { background: rgba(0, 255, 65, 0.05); border-left-color: rgba(255, 204, 0, 0.35); color: #00ff41; }
+.history-empty { font-size: 0.65rem; color: #887700; text-align: center; padding: 20px 0; letter-spacing: 0.5px; }
+
+/* ── Mouse Trackpad Section ── */
+.mouse-section { width: 100%; margin-bottom: 10px; text-align: left; }
+.mouse-toggle {
+  display: inline-block; width: auto; padding: 4px 10px;
+  background: rgba(10,10,15,0.5);
+  border: 1px solid rgba(255,204,0,0.2); border-radius: 4px;
+  color: #ffcc00; font-family: inherit; font-size: 0.6rem;
+  letter-spacing: 1px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; user-select: none;
+  transition: all 0.3s ease; text-align: center;
+}
+.mouse-toggle:active { background: rgba(255,204,0,0.05); border-color: rgba(255,204,0,0.3); }
+/* ── Animated expand/collapse for mouse section ── */
+.mouse-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease;
+  opacity: 0;
+}
+.mouse-content.expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.mouse-content > .mouse-content-inner {
+  overflow: hidden;
+}
+
+.trackpad-label { color: #887700; font-size: 0.6rem; letter-spacing: 1px; text-align: center; margin-bottom: 4px; }
+
+.trackpad {
+  width: 100%; height: 180px;
+  margin: 0 auto;
+  background: rgba(10,10,15,0.6);
+  border: 1px solid rgba(0,255,65,0.15); border-radius: 4px;
+  position: relative; cursor: crosshair;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none; overflow: hidden;
+}
+/* Subtle grid overlay */
+.trackpad::before {
+  content: ''; position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,255,65,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,65,0.05) 1px, transparent 1px);
+  background-size: 30px 30px;
+  pointer-events: none;
+}
+/* Center dot */
+.trackpad-dot {
+  position: absolute; top: 50%; left: 50%;
+  width: 6px; height: 6px;
+  background: rgba(0,255,65,0.35);
+  border-radius: 50%;
+  transform: translate(-50%,-50%);
+  pointer-events: none;
+  box-shadow: 0 0 8px rgba(0,255,65,0.25);
+}
+/* Crosshair lines */
+.trackpad-x, .trackpad-y {
+  position: absolute; top: 50%; left: 50%;
+  background: rgba(0,255,65,0.12);
+  pointer-events: none;
+}
+.trackpad-x { width: 40px; height: 1px; transform: translate(-50%,-50%); }
+.trackpad-y { width: 1px; height: 40px; transform: translate(-50%,-50%); }
+
+.trackpad-buttons { display: flex; gap: 8px; margin-top: 8px; }
+.click-btn, .rclick-btn {
+  flex: 1; padding: 8px; border-radius: 4px;
+  font-family: inherit; font-size: 0.55rem;
+  letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  user-select: none; transition: all 0.3s ease;
+}
+.click-btn {
+  border: 1px solid rgba(0,255,65,0.3);
+  background: rgba(0,20,5,0.25);
+  color: #00ff41;
+  box-shadow: 0 0 8px rgba(0,255,65,0.08);
+}
+.click-btn:active, .click-btn.tap-active {
+  background: rgba(0,255,65,0.1);
+  box-shadow: 0 0 14px rgba(0,255,65,0.25);
+}
+.click-btn.dragging {
+  background: rgba(0,255,65,0.12);
+  border-color: rgba(0,255,65,0.5);
+  box-shadow: 0 0 18px rgba(0,255,65,0.3);
+}
+.rclick-btn {
+  border: 1px solid rgba(255,204,0,0.15);
+  background: rgba(10,10,15,0.3);
+  color: #ffcc00;
+}
+.rclick-btn:active {
+  background: rgba(255,204,0,0.05);
+  color: #00ff41; border-color: rgba(255,204,0,0.3);
+}
+
+.sensitivity-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; margin-top: 8px;
+  font-size: 0.65rem; color: #ffcc00;
+}
+.sensitivity-row button {
+  width: 28px; height: 24px;
+  border: 1px solid rgba(255,204,0,0.15); border-radius: 3px;
+  background: rgba(10,10,15,0.3);
+  color: #ffcc00; font-family: inherit; font-size: 0.8rem;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  user-select: none; transition: all 0.3s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+.sensitivity-row button:active {
+  background: rgba(0,255,65,0.05);
+  color: #00ff41; border-color: rgba(0,255,65,0.3);
+}
+.sensitivity-row .sens-label { color: #887700; font-size: 0.6rem; letter-spacing: 0.5px; }
+.sensitivity-row .sens-val { min-width: 30px; text-align: center; color: #00ff41; font-size: 0.75rem; }
+
+/* ── Tap ripple / gradient pulse ── */
+.ripple {
+  position: fixed;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 255, 65, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 9998;
+  animation: ripple-expand 0.6s ease-out forwards;
+}
+
+@keyframes ripple-expand {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(60);
+    opacity: 0;
+  }
+}
+
+/* ── Landscape / horizontal orientation ── */
+@media (orientation: landscape) {
+  body {
+    padding: 10px 16px;
+  }
+  .container {
+    max-width: 100%;
+    height: calc(100vh - 20px);
+    padding: 6px 0 10px;
+    display: grid;
+    grid-template-columns: 1fr 1.6fr;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    gap: 2px 16px;
+  }
+  .container > h1 {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    font-size: 1.6rem;
+    margin-bottom: 0;
+  }
+  .container > .history {
+    grid-column: 2;
+    grid-row: 3;
+    max-height: none;
+    margin-bottom: 4px;
+  }
+  .container > .mic-area {
+    grid-column: 1;
+    grid-row: 3;
+    flex: none;
+    justify-content: center;
+    gap: 2px;
+  }
+  .container > .mouse-section {
+    grid-column: 2;
+    grid-row: 4;
+    margin-bottom: 0;
+    text-align: left;
+  }
+  .mic-btn {
+    width: 100px;
+    height: 100px;
+    border-radius: 50px;
+    font-size: 2.5rem;
+    margin: 4px auto 8px;
+  }
+  .mic-svg {
+    width: 50px;
+    height: 50px;
+  }
+  .trackpad {
+    height: 100px;
+  }
+  /* Hide subtitle in landscape to save space */
+  .subtitle {
+    display: none;
+  }
+  .status {
+    font-size: 0.7rem;
+    margin: 2px 0;
+  }
+  .paste-status {
+    font-size: 0.65rem;
+    margin-top: 0;
+  }
+  .badge-row {
+    margin-top: 4px;
+  }
+  .abort-btn {
+    margin-top: 2px;
+    padding: 3px 12px;
+    font-size: 0.6rem;
+  }
+  .mouse-toggle {
+    font-size: 0.6rem;
+    padding: 4px 8px;
+  }
+  .trackpad-label {
+    margin-bottom: 2px;
+  }
+  .trackpad-buttons {
+    margin-top: 4px;
+  }
+  .click-btn, .rclick-btn {
+    padding: 5px;
+    font-size: 0.6rem;
+  }
+  .sensitivity-row {
+    margin-top: 4px;
+    font-size: 0.55rem;
+  }
+  .scan-lines {
+    animation: scan-scroll 8s linear infinite;
+  }
+}
+</style>
+</head>
+<body>
+<div class="shine" id="shine"></div>
+<div class="scan-lines"></div>
+<div class="radar-sweep"></div>
+<div class="container" id="container">
+  <h1>C0D3.5P34K</h1>
+  <p class="subtitle">Tap mic, speak, text appears at cursor</p>
+
+  <div class="history" id="history">
+    <div class="history-empty">No pastes yet</div>
+  </div>
+
+  <div class="mic-area">
+  <div class="mic-wrapper">
+    <div class="radar-rings"></div>
+    <button class="mic-btn" id="micBtn" aria-label="Record">
+        <svg class="mic-svg" viewBox="0 0 24 24">
+          <rect x="10" y="2" width="4" height="11" rx="2"/>
+          <path d="M7 12a5 5 0 0 0 10 0"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+        </svg>
+        <span class="mic-overlay" id="micOverlay"></span>
+      </button>
+    </div>
+    <div class="status" id="status">Tap to record</div>
+    <div class="paste-status" id="pasteStatus"></div>
+
+    <div class="badge-row">
+      <span id="serverBadge" class="badge">server</span>
+      <span id="whisperBadge" class="badge">whisper</span>
+    </div>
+    <div><button class="abort-btn" id="abortBtn">ABORT</button></div>
+  </div>
+
+  <!-- ── Mouse Trackpad ── -->
+  <div class="mouse-section">
+    <button class="mouse-toggle" id="mouseToggle">▶ MOUSE</button>
+    <div class="mouse-content" id="mouseContent">
+      <div class="mouse-content-inner">
+        <div class="trackpad-label">TRACKPAD</div>
+        <div class="trackpad" id="trackpad">
+          <div class="trackpad-x"></div>
+          <div class="trackpad-y"></div>
+          <div class="trackpad-dot"></div>
+        </div>
+        <div class="trackpad-buttons">
+          <button class="click-btn" id="clickBtn">CLICK</button>
+          <button class="rclick-btn" id="rclickBtn">R-CLICK</button>
+        </div>
+        <div class="sensitivity-row">
+          <span class="sens-label">SENS</span>
+          <button id="sensDown">−</button>
+          <span class="sens-val" id="sensVal">4.0</span>
+          <button id="sensUp">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BRIDGE_URL = window.location.origin;
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+let recordingTimer = null;
+let recordingSeconds = 0;
+let cancelRecording = false;
+
+const micBtn = document.getElementById("micBtn");
+const micOverlay = document.getElementById("micOverlay");
+const statusEl = document.getElementById("status");
+const pasteStatus = document.getElementById("pasteStatus");
+const serverBadge = document.getElementById("serverBadge");
+const whisperBadge = document.getElementById("whisperBadge");
+const abortBtn = document.getElementById("abortBtn");
+const historyEl = document.getElementById("history");
+
+let pasteHistory = [];
+const MAX_HISTORY = 3;
+
+function renderHistory() {
+  if (pasteHistory.length === 0) {
+    historyEl.innerHTML = '<div class="history-empty">No pastes yet</div>';
+    return;
+  }
+  historyEl.innerHTML = pasteHistory.map((t, i) =>
+    `<div class="history-item" data-index="${i}">${t.length > 60 ? t.slice(0, 60) + '…' : t}</div>`
+  ).join("");
+}
+
+historyEl.addEventListener("click", e => {
+  let item = e.target.closest(".history-item");
+  if (!item) return;
+  let idx = parseInt(item.dataset.index);
+  let text = pasteHistory[idx];
+  if (text) sendToPaste(text);
+});
+
+function setStatus(msg, type) {
+  statusEl.textContent = msg;
+  statusEl.className = "status" + (type ? " " + type : "");
+}
+
+function setPaste(msg) { pasteStatus.textContent = msg; }
+
+function micState(state, overlay) {
+  micBtn.className = "mic-btn" + (state ? " " + state : "");
+  micOverlay.textContent = overlay || "";
+}
+
+async function checkHealth() {
+  try {
+    let r = await fetch(`${BRIDGE_URL}/health`, { signal: AbortSignal.timeout(3000) });
+    let data = await r.json();
+    serverBadge.textContent = data.opencode ? "opencode ✓" : "opencode ✗";
+    serverBadge.className = "badge" + (data.opencode ? " on" : "");
+    whisperBadge.textContent = data.whisper ? "whisper ✓" : "whisper ✗";
+    whisperBadge.className = "badge" + (data.whisper ? " on" : "");
+  } catch {
+    serverBadge.textContent = "server ✗";
+    serverBadge.className = "badge";
+    whisperBadge.textContent = "whisper ✗";
+    whisperBadge.className = "badge";
+  }
+}
+
+async function startRecording() {
+  try {
+    let stream = await navigator.mediaDevices.getUserMedia({ audio: {
+      sampleRate: 16000, channelCount: 1,
+      echoCancellation: true, noiseSuppression: true
+    }});
+    let mimeType = "audio/webm;codecs=opus";
+    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = "audio/webm";
+    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = "audio/mp4;codecs=mp4a.40.2";
+    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = "audio/mp4";
+    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = "";
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      if (cancelRecording) {
+        cancelRecording = false;
+        setStatus("Cancelled");
+        micState("");
+        return;
+      }
+      let blob = new Blob(audioChunks, { type: mimeType });
+      if (recordingSeconds < 2) {
+        setStatus("Too short (" + recordingSeconds + "s), try again", "error");
+        micState("error", "!");
+        return;
+      }
+      await transcribe(blob);
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    recordingSeconds = 0;
+    micBtn.className = "mic-btn recording";
+    micState("recording");
+    recordingTimer = setInterval(() => {
+      recordingSeconds++;
+      setStatus("Recording... " + recordingSeconds + "s");
+    }, 1000);
+  } catch(e) {
+    setStatus("Mic denied: " + e.message, "error");
+  }
+}
+
+function stopRecording() {
+  clearInterval(recordingTimer);
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    setStatus("Processing " + recordingSeconds + "s audio...");
+    micState("processing", "...");
+    micBtn.className = "mic-btn";
+    mediaRecorder.stop();
+    isRecording = false;
+  }
+}
+
+async function transcribe(blob) {
+  if (blob.size < 200) {
+    setStatus("Recording too short (" + blob.size + "B), try again", "error");
+    micState("error", "!");
+    return;
+  }
+  try {
+    let formData = new FormData();
+    formData.append("file", blob, "recording.webm");
+    let r = await fetch(`/transcribe`, {
+      method: "POST", body: formData, signal: AbortSignal.timeout(30000)
+    });
+    let text = "", err = "";
+    try {
+      let j = await r.json();
+      text = j.text || "";
+      err = j.error || "";
+    } catch {
+      err = "bad JSON from server (HTTP " + r.status + ")";
+    }
+    if (err) {
+      setStatus("Server: " + err.slice(0, 80), "error");
+      micState("error", "!");
+      return;
+    }
+    if (text.trim() === "." || text.trim() === "" || text === "(silence detected)") {
+      setStatus("Couldn't hear that, try again", "error");
+      micState("error", "!");
+      return;
+    }
+    // Filter whisper silence hallucinations (short filler words)
+    let short = text.trim().toLowerCase();
+    if (/^(you|the|a|an|in|on|at|to|for|of|and|or|is|it|i'm|um|uh|hmm|mm|ah|oh|ok|so|no|yeah|yep|thank you|thanks)$/i.test(short)) {
+      setStatus("Couldn't hear that, try again", "error");
+      micState("error", "!");
+      return;
+    }
+
+    setStatus("✓ " + text.slice(0, 60) + (text.length > 60 ? "..." : ""));
+    await sendToPaste(text);
+  } catch(e) {
+    setStatus("Failed: " + e.message, "error");
+    micState("error", "!");
+  }
+}
+
+async function sendToPaste(text) {
+  setPaste("Copying to clipboard...");
+  try {
+    let r = await fetch(`/paste`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(10000)
+    });
+    let result = await r.json();
+    if (result.paste) {
+      let msg = result.enter ? "✓ Pasted + Enter" : "✓ Pasted";
+      setPaste(msg);
+      setStatus("✓ Done");
+    } else if (result.clipboard) {
+      setPaste("📋 Copied — Cmd+V to paste");
+      setStatus("✓ Copied to clipboard");
+    } else {
+      setPaste("⚠ Paste failed: " + (result.clipboard_error || "unknown"));
+      setStatus("Error", "error");
+    }
+    pasteHistory.push(text);
+    if (pasteHistory.length > MAX_HISTORY) pasteHistory.shift();
+    renderHistory();
+    historyEl.scrollTop = historyEl.scrollHeight;
+  } catch(e) {
+    setPaste("⚠ Error: " + e.message);
+  }
+  micState("");
+}
+
+micBtn.addEventListener("click", () => {
+  if (isRecording) stopRecording();
+  else startRecording();
+});
+
+async function interrupt() {
+  if (isRecording) {
+    cancelRecording = true;
+    clearInterval(recordingTimer);
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      setStatus("Cancelling...");
+      mediaRecorder.stop();
+      isRecording = false;
+      micBtn.className = "mic-btn";
+    }
+    return;
+  }
+  setStatus("Interrupting...");
+  abortBtn.disabled = true;
+  abortBtn.textContent = "...";
+  try {
+    let r = await fetch(`/interrupt`, { method: "POST", signal: AbortSignal.timeout(5000) });
+    let j = await r.json();
+    setStatus(j.ok ? "Escape sent" : "Interrupt failed", j.ok ? "success" : "error");
+  } catch(e) {
+    setStatus("Interrupt error: " + e.message, "error");
+  }
+  abortBtn.textContent = "ABORT";
+  abortBtn.disabled = false;
+}
+
+abortBtn.addEventListener("click", interrupt);
+
+renderHistory();
+checkHealth();
+setInterval(checkHealth, 30000);
+
+/* ── Gyroscope Shiny Effect ── */
+const shine = document.getElementById("shine");
+let targetX = 50, targetY = 50;
+let currentX = 50, currentY = 50;
+let useGyro = false;
+let animFrame = null;
+
+// Smoothed animation loop — lerp toward target
+function animateShine() {
+  let dx = targetX - currentX;
+  let dy = targetY - currentY;
+  let dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 0.05) {
+    currentX = targetX;
+    currentY = targetY;
+  } else {
+    let ease = 0.12;
+    currentX += dx * ease;
+    currentY += dy * ease;
+  }
+  shine.style.background =
+    `radial-gradient(circle at ${currentX.toFixed(1)}% ${currentY.toFixed(1)}%,
+      rgba(80, 255, 140, 0.15) 0%,
+      rgba(40, 200, 100, 0.05) 25%,
+      transparent 55%
+    ),
+    radial-gradient(circle at ${currentX.toFixed(1)}% ${currentY.toFixed(1)}%,
+      rgba(0, 255, 65, 0.04) 0%,
+      transparent 40%
+    )`;
+  animFrame = requestAnimationFrame(animateShine);
+}
+animFrame = requestAnimationFrame(animateShine);
+
+function setTarget(x, y) {
+  targetX = Math.max(0, Math.min(100, x));
+  targetY = Math.max(0, Math.min(100, y));
+}
+
+// Device orientation (phone tilt)
+function handleOrientation(e) {
+  if (e.gamma === null && e.beta === null && e.alpha === null) return;
+  useGyro = true;
+  // gamma: -90 (left) to 90 (right)
+  // beta: -180 (top away) to 180 (top toward), usually -45 to 45 in portrait
+  let g = e.gamma || 0;
+  let b = e.beta || 0;
+  // Clamp for reasonable tilt range
+  g = Math.max(-60, Math.min(60, g));
+  b = Math.max(-60, Math.min(60, b));
+  let x = 50 + (g / 60) * 40;
+  let y = 50 - (b / 60) * 30; // invert so tilting phone forward = shine goes up
+  setTarget(x, y);
+}
+
+// Device motion as extra responsiveness (acceleration)
+let prevTime = null;
+function handleMotion(e) {
+  if (useGyro) return;
+  let acc = e.accelerationIncludingGravity;
+  if (!acc) return;
+  // Use gravity vector to infer tilt (works on all devices)
+  let x = 50 + (acc.x || 0) * 3;
+  let y = 50 + (acc.y || 0) * 3;
+  setTarget(x, y);
+}
+
+// Mouse fallback (desktop)
+function handleMouse(e) {
+  if (useGyro) return;
+  let x = (e.clientX / window.innerWidth) * 100;
+  let y = (e.clientY / window.innerHeight) * 100;
+  setTarget(x, y);
+}
+
+// Request orientation + motion permission (iOS 13+)
+let permAttempted = false;
+async function requestSensorPermission() {
+  if (permAttempted) return;
+  permAttempted = true;
+  // Request orientation permission
+  if (typeof DeviceOrientationEvent !== "undefined" &&
+      typeof DeviceOrientationEvent.requestPermission === "function") {
+    try {
+      let perm = await DeviceOrientationEvent.requestPermission();
+      if (perm === "granted") {
+        window.addEventListener("deviceorientation", handleOrientation, true);
+      }
+    } catch {}
+  }
+  // Also request motion permission
+  if (typeof DeviceMotionEvent !== "undefined" &&
+      typeof DeviceMotionEvent.requestPermission === "function") {
+    try {
+      let perm2 = await DeviceMotionEvent.requestPermission();
+      if (perm2 === "granted") {
+        window.addEventListener("devicemotion", handleMotion, true);
+      }
+    } catch {}
+  }
+}
+
+// Also try without permission (works on many Androids, some iOS)
+function tryAttachOrientation() {
+  if (typeof DeviceOrientationEvent !== "undefined" &&
+      typeof DeviceOrientationEvent.requestPermission !== "function") {
+    window.addEventListener("deviceorientation", handleOrientation, true);
+  }
+  // devicemotion often doesn't need permission
+  if (typeof DeviceMotionEvent !== "undefined" &&
+      typeof DeviceMotionEvent.requestPermission !== "function") {
+    window.addEventListener("devicemotion", handleMotion, true);
+  }
+}
+
+tryAttachOrientation();
+
+// Try sensor permission on first user interaction
+document.addEventListener("click", requestSensorPermission, { once: true });
+document.addEventListener("touchstart", requestSensorPermission, { once: true });
+
+// Mouse fallback
+document.addEventListener("mousemove", handleMouse);
+
+// Reset to center when window changes
+window.addEventListener("resize", () => {
+  if (!useGyro) setTarget(50, 50);
+});
+
+// ── Mouse Trackpad ──
+const MOUSE_EXPANDED_KEY = 'voice-bridge-mouse-expanded';
+const SENSITIVITY_KEY = 'voice-bridge-sensitivity';
+
+const mouseToggle = document.getElementById('mouseToggle');
+const mouseContent = document.getElementById('mouseContent');
+const trackpadEl = document.getElementById('trackpad');
+const clickBtn = document.getElementById('clickBtn');
+const rclickBtn = document.getElementById('rclickBtn');
+const sensVal = document.getElementById('sensVal');
+const sensDown = document.getElementById('sensDown');
+const sensUp = document.getElementById('sensUp');
+
+// Restore sensitivity
+let sensitivity = parseFloat(localStorage.getItem(SENSITIVITY_KEY) || '4.0');
+sensVal.textContent = sensitivity.toFixed(1);
+
+// Collapsible: restore state
+let mouseExpanded = localStorage.getItem(MOUSE_EXPANDED_KEY) === 'true';
+if (mouseExpanded) {
+  mouseContent.classList.add('expanded');
+  mouseToggle.textContent = '▼ MOUSE';
+} else {
+  mouseToggle.textContent = '▶ MOUSE';
+}
+
+mouseToggle.addEventListener('click', () => {
+  mouseExpanded = !mouseExpanded;
+  localStorage.setItem(MOUSE_EXPANDED_KEY, mouseExpanded);
+  mouseContent.classList.toggle('expanded', mouseExpanded);
+  mouseToggle.textContent = mouseExpanded ? '▼ MOUSE' : '▶ MOUSE';
+});
+
+// Sensitivity controls
+sensDown.addEventListener('click', () => {
+  sensitivity = Math.max(0.5, +(sensitivity - 0.5).toFixed(1));
+  sensVal.textContent = sensitivity.toFixed(1);
+  localStorage.setItem(SENSITIVITY_KEY, sensitivity);
+});
+sensUp.addEventListener('click', () => {
+  sensitivity = Math.min(10, +(sensitivity + 0.5).toFixed(1));
+  sensVal.textContent = sensitivity.toFixed(1);
+  localStorage.setItem(SENSITIVITY_KEY, sensitivity);
+});
+
+// ── Trackpad touch handling with tap-to-click ──
+const trackpadDot = document.querySelector('.trackpad-dot');
+const DRAG_BUFFER = 6; // px before touch becomes a drag
+const TAP_TIMEOUT = 250; // ms max for a tap
+let tpStartX = 0, tpStartY = 0;
+let tpLastX = 0, tpLastY = 0;
+let tpActive = false;
+let tpMoved = false;
+let tpLastMoveTime = 0;
+const TP_THROTTLE = 33; // ~30fps
+
+function updateTrackpadDot(clientX, clientY) {
+  const rect = trackpadEl.getBoundingClientRect();
+  let x = ((clientX - rect.left) / rect.width) * 100;
+  let y = ((clientY - rect.top) / rect.height) * 100;
+  trackpadDot.style.left = Math.max(0, Math.min(100, x)) + '%';
+  trackpadDot.style.top = Math.max(0, Math.min(100, y)) + '%';
+}
+
+function resetTrackpadDot() {
+  trackpadDot.style.left = '50%';
+  trackpadDot.style.top = '50%';
+}
+
+trackpadEl.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  tpStartX = touch.clientX;
+  tpStartY = touch.clientY;
+  tpLastX = touch.clientX;
+  tpLastY = touch.clientY;
+  tpActive = true;
+  tpMoved = false;
+  updateTrackpadDot(touch.clientX, touch.clientY);
+}, { passive: false });
+
+trackpadEl.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!tpActive) return;
+  const touch = e.touches[0];
+  updateTrackpadDot(touch.clientX, touch.clientY);
+
+  // Check drag buffer — ignore tiny movements
+  const dist = Math.hypot(touch.clientX - tpStartX, touch.clientY - tpStartY);
+  if (dist < DRAG_BUFFER) return;
+
+  tpMoved = true;
+  const now = Date.now();
+  if (now - tpLastMoveTime < TP_THROTTLE) return;
+  tpLastMoveTime = now;
+
+  let rawDx = touch.clientX - tpLastX;
+  let rawDy = touch.clientY - tpLastY;
+  const rawDist = Math.hypot(rawDx, rawDy);
+  // Velocity-based acceleration: faster finger = more cursor gain
+  const accel = Math.min(3.5, 1 + (rawDist * 0.04));
+  let dx = rawDx * sensitivity * accel;
+  let dy = rawDy * sensitivity * accel;
+  tpLastX = touch.clientX;
+  tpLastY = touch.clientY;
+
+  if (e.touches.length >= 2) {
+    // Two-finger swipe = scroll
+    fetch('/mouse-scroll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dy: Math.round(dy) }),
+    }).catch(() => {});
+  } else {
+    // One-finger drag = mouse move
+    fetch('/mouse-move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dx: Math.round(dx), dy: Math.round(dy) }),
+    }).catch(() => {});
+  }
+}, { passive: false });
+
+trackpadEl.addEventListener('touchend', (e) => {
+  tpActive = false;
+  resetTrackpadDot();
+
+  if (!tpMoved) {
+    // Quick tap → click
+    fetch('/mouse-click', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ button: 'left' }),
+    }).catch(() => {});
+  }
+});
+
+trackpadEl.addEventListener('touchcancel', () => { tpActive = false; resetTrackpadDot(); });
+
+// ── Click button: long press = drag mode ──
+let clickTimer = null;
+let isDragging = false;
+let touchFired = false;
+
+clickBtn.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  touchFired = true;
+  clickTimer = setTimeout(() => {
+    isDragging = true;
+    clickBtn.classList.add('dragging');
+    fetch('/mouse-down', { method: 'POST' }).catch(() => {});
+  }, 500);
+}, { passive: false });
+
+clickBtn.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  clearTimeout(clickTimer);
+  if (isDragging) {
+    isDragging = false;
+    clickBtn.classList.remove('dragging');
+    fetch('/mouse-up', { method: 'POST' }).catch(() => {});
+  } else {
+    fetch('/mouse-click', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ button: 'left' }),
+    }).catch(() => {});
+  }
+}, { passive: false });
+
+clickBtn.addEventListener('touchcancel', () => {
+  clearTimeout(clickTimer);
+  if (isDragging) {
+    isDragging = false;
+    clickBtn.classList.remove('dragging');
+    fetch('/mouse-up', { method: 'POST' }).catch(() => {});
+  }
+});
+
+// Mouse click fallback for desktop testing (guard against touch double-fire)
+clickBtn.addEventListener('click', () => {
+  if (touchFired) { touchFired = false; return; }
+  fetch('/mouse-click', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ button: 'left' }),
+  }).catch(() => {});
+});
+
+// Right click button
+rclickBtn.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  touchFired = true;
+  fetch('/mouse-click', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ button: 'right' }),
+  }).catch(() => {});
+}, { passive: false });
+
+rclickBtn.addEventListener('click', () => {
+  if (touchFired) { touchFired = false; return; }
+  fetch('/mouse-click', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ button: 'right' }),
+  }).catch(() => {});
+});
+
+// ── Tap empty space in mouse section → left click ──
+const mouseContentInner = document.querySelector('.mouse-content-inner');
+mouseContentInner.addEventListener('touchend', (e) => {
+  // Don't interfere with buttons, sensitivity controls, or trackpad
+  if (e.target.closest('button, .trackpad, .sensitivity-row')) return;
+  e.preventDefault();
+  fetch('/mouse-click', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ button: 'left' }),
+  }).catch(() => {});
+}, { passive: false });
+
+// ── Radar pulse ripple on tap ──
+document.addEventListener('touchstart', (e) => {
+  const touch = e.touches[0];
+  if (!touch) return;
+  const ripple = document.createElement('div');
+  ripple.className = 'ripple';
+  ripple.style.left = touch.clientX + 'px';
+  ripple.style.top = touch.clientY + 'px';
+  document.body.appendChild(ripple);
+  setTimeout(() => ripple.remove(), 700);
+}, { passive: true });
+</script>
+</body>
+</html>

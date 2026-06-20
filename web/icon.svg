@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0a0a0f"/>
+  <g transform="translate(256,256)">
+    <radialGradient id="g" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00ff41" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#00ff41" stop-opacity="0"/>
+    </radialGradient>
+    <circle r="140" fill="url(#g)"/>
+    <rect x="-45" y="-100" width="90" height="180" rx="45" fill="none" stroke="#00ff41" stroke-width="6"/>
+    <line x1="-30" y1="-55" x2="30" y2="-55" stroke="#00ff41" stroke-width="4" opacity="0.85"/>
+    <line x1="-30" y1="-35" x2="30" y2="-35" stroke="#00ff41" stroke-width="4" opacity="0.70"/>
+    <line x1="-30" y1="-15" x2="30" y2="-15" stroke="#00ff41" stroke-width="4" opacity="0.55"/>
+    <line x1="-30" y1="5" x2="30" y2="5" stroke="#00ff41" stroke-width="4" opacity="0.40"/>
+    <line x1="-28" y1="25" x2="28" y2="25" stroke="#00ff41" stroke-width="3.5" opacity="0.30"/>
+    <ellipse cx="0" cy="-10" rx="20" ry="8" fill="none" stroke="#00ff41" stroke-width="2" opacity="0.25"/>
+    <ellipse cx="0" cy="-10" rx="12" ry="5" fill="none" stroke="#00ff41" stroke-width="2" opacity="0.35"/>
+    <rect x="-30" y="85" width="6" height="40" rx="2" fill="#00ff41"/>
+    <rect x="24" y="85" width="6" height="40" rx="2" fill="#00ff41"/>
+    <rect x="-30" y="119" width="60" height="6" rx="2" fill="#00ff41"/>
+  </g>
+</svg>
