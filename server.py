@@ -129,7 +129,10 @@ def index():
 @app.route("/<path:filename>")
 def static_files(filename):
     resp = send_from_directory(str(WEB_DIR), filename)
-    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    if filename.endswith((".png", ".svg", ".ico", ".webmanifest")):
+        resp.headers["Cache-Control"] = "public, max-age=86400, must-revalidate"
+    else:
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 
 
