@@ -775,6 +775,7 @@ a[href="/echo"]:hover {
     <div class="badge-row">
       <span id="serverBadge" class="badge">server</span>
       <span id="whisperBadge" class="badge">whisper</span>
+      <span id="accBadge" class="badge">access</span>
     </div>
     <div><button class="abort-btn" id="abortBtn">ABORT</button></div>
   </div>
@@ -820,6 +821,7 @@ const statusEl = document.getElementById("status");
 const pasteStatus = document.getElementById("pasteStatus");
 const serverBadge = document.getElementById("serverBadge");
 const whisperBadge = document.getElementById("whisperBadge");
+const accBadge = document.getElementById("accBadge");
 const abortBtn = document.getElementById("abortBtn");
 const historyEl = document.getElementById("history");
 
@@ -857,20 +859,24 @@ function micState(state, overlay) {
 }
 
 async function checkHealth() {
-  try {
-    let r = await fetch(`health`, { signal: AbortSignal.timeout(3000) });
-    let data = await r.json();
-    serverBadge.textContent = data.opencode ? "opencode ✓" : "opencode ✗";
-    serverBadge.className = "badge" + (data.opencode ? " on" : "");
-    whisperBadge.textContent = data.whisper ? "whisper ✓" : "whisper ✗";
-    whisperBadge.className = "badge" + (data.whisper ? " on" : "");
-  } catch {
-    serverBadge.textContent = "server ✗";
-    serverBadge.className = "badge";
-    whisperBadge.textContent = "whisper ✗";
-    whisperBadge.className = "badge";
+    try {
+      let r = await fetch(`health`, { signal: AbortSignal.timeout(3000) });
+      let data = await r.json();
+      serverBadge.textContent = data.opencode ? "opencode ✓" : "opencode ✗";
+      serverBadge.className = "badge" + (data.opencode ? " on" : "");
+      whisperBadge.textContent = data.whisper ? "whisper ✓" : "whisper ✗";
+      whisperBadge.className = "badge" + (data.whisper ? " on" : "");
+      accBadge.textContent = data.accessibility ? "access ✓" : "access ✗";
+      accBadge.className = "badge" + (data.accessibility ? " on" : "");
+    } catch {
+      serverBadge.textContent = "server ✗";
+      serverBadge.className = "badge";
+      whisperBadge.textContent = "whisper ✗";
+      whisperBadge.className = "badge";
+      accBadge.textContent = "access ✗";
+      accBadge.className = "badge";
+    }
   }
-}
 
 async function startRecording() {
   try {
@@ -990,7 +996,7 @@ async function sendToPaste(text) {
       setPaste(msg);
       setStatus("✓ Done");
     } else if (result.clipboard) {
-      setPaste("📋 Copied — Cmd+V to paste");
+      setPaste("📋 Copied — grant Accessibility in System Settings for auto-paste");
       setStatus("✓ Copied to clipboard");
     } else {
       setPaste("⚠ Paste failed: " + (result.clipboard_error || "unknown"));

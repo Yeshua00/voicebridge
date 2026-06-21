@@ -94,6 +94,20 @@ def echo():
     return jsonify(info)
 
 
+def _check_accessibility():
+    """Test if macOS Accessibility (keystroke injection) is actually working.
+    Returns True if cliclick can inject keys, False otherwise."""
+    if not os.path.isfile(CLICLICK):
+        return False
+    try:
+        # Harmless shift press+release — tests Accessibility permission
+        subprocess.run([CLICLICK, "kd:shift", "ku:shift"], timeout=3, check=True,
+                       capture_output=True)
+        return True
+    except Exception:
+        return False
+
+
 @app.route("/health")
 def health():
     whisper_ok = False
@@ -109,7 +123,13 @@ def health():
     except Exception:
         pass
     cliclick_ok = os.access(CLICLICK, os.X_OK) if os.path.isfile(CLICLICK) else False
-    return jsonify({"whisper": whisper_ok, "opencode": opencode_ok, "cliclick": cliclick_ok})
+    accessibility_ok = _check_accessibility()
+    return jsonify({
+        "whisper": whisper_ok,
+        "opencode": opencode_ok,
+        "cliclick": cliclick_ok,
+        "accessibility": accessibility_ok,
+    })
 
 
 @app.route("/sessions")
@@ -434,4 +454,15 @@ if __name__ == "__main__":
     print(f"[voice-bridge]   Serving static from {STATIC_DIR}")
     print(f"[voice-bridge]   Whisper at {WHISPER_URL}")
     print(f"[voice-bridge]   Tailscale: https://100.127.167.105:{port}")
+
+    # Startup diagnostics
+    acc = _check_accessibility()
+    if acc:
+        print("[voice-bridge]   ✓ Accessibility granted — keystroke injection works")
+    else:
+        print("[voice-bridge]   ✗ Accessibility DENIED — paste will copy to clipboard only")
+        print("[voice-bridge]     Grant Accessibility permission in:")
+        print("[voice-bridge]     System Settings → Privacy & Security → Accessibility")
+        print("[voice-bridge]     Add Terminal and/or /opt/homebrew/bin/cliclick")
+
     app.run(host="0.0.0.0", port=port, debug=False, ssl_context=ssl_ctx)
