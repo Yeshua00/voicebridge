@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 """
-C0D3.5P34K — iPhone-to-Mac voice relay + remote mouse over local network.
-Serves a PWA web page that records from iPhone/iPad browser mic,
-transcribes via whisper-server, and pastes at cursor.
-Also provides a remote trackpad with tap-to-click and scroll.
-
-Self-contained: all paths relative to this script's directory.
+OpenCode Voice Bridge — iOS voice input over Tailscale.
+Serves a web page that records from iPhone/iPad browser mic,
+transcribes via whisper-server, and injects into OpenCode.
 """
 
 import json
 import os
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -19,142 +15,131 @@ import Quartz
 import requests
 from flask import Flask, jsonify, request, send_from_directory
 
-# ── Paths (all relative to this script) ──────────────────────────
-APP_DIR = Path(__file__).parent.resolve()
-WEB_DIR = APP_DIR / "web"
-CERTS_DIR = APP_DIR / ".certs"
-CERTS_DIR.mkdir(exist_ok=True)
-
-CERT_FILE = CERTS_DIR / "cert.pem"
-KEY_FILE = CERTS_DIR / "key.pem"
-
-WHISPER_URL = os.environ.get("WHISPER_URL", "http://127.0.0.1:9999/inference")
-PORT = int(os.environ.get("C0D3_PORT", 9998))
-
 app = Flask(__name__)
+WHISPER_URL = "http://127.0.0.1:9999/inference"
+OPENCODE_ADDR = os.environ.get("OPENCODE_ADDR", "http://localhost:4096")
+CLICLICK = "/opt/homebrew/bin/cliclick"
+STATIC_DIR = os.path.expanduser("~/voice-bridge/web")
 
+ENV_FILE = os.path.expanduser("~/.voice-bridge/.opencode-env")
 
-# ── Self-signed certificate (auto-generated) ─────────────────────
-
-def _ensure_cert():
-    """Generate a self-signed cert with openssl if missing."""
-    if CERT_FILE.exists() and KEY_FILE.exists():
-        return True
-    print("[c0d3sp34k] Generating self-signed certificate...", flush=True)
+def _detect_opencode_env():
+    env = os.environ
+    needed = {"OPENCODE_SERVER_PASSWORD"}
+    if needed.issubset(env):
+        return
+    # Read from env file
+    errs = []
     try:
-        subprocess.run(
-            ["openssl", "req", "-x509", "-newkey", "rsa:4096",
-             "-keyout", str(KEY_FILE),
-             "-out", str(CERT_FILE),
-             "-days", "3650", "-nodes",
-             "-subj", "/CN=C0D3.5P34K"],
-            check=True, capture_output=True, timeout=30,
-        )
-        # Restrict permissions
-        KEY_FILE.chmod(0o600)
-        CERT_FILE.chmod(0o644)
-        print(f"[c0d3sp34k] Cert written to {CERT_FILE}", flush=True)
-        return True
+        with open(ENV_FILE) as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    env.setdefault(k.strip(), v.strip())
     except FileNotFoundError:
-        print("[c0d3sp34k] WARNING: openssl not found — will serve HTTP only", flush=True)
-        return False
+        errs.append(f"{ENV_FILE} not found")
+    except PermissionError:
+        errs.append(f"{ENV_FILE} permission denied")
     except Exception as e:
-        print(f"[c0d3sp34k] Cert generation failed: {e}", flush=True)
-        return False
-
-
-# ── Local network detection ──────────────────────────────────────
-
-def _get_local_ips():
-    """Return list of non-loopback IPv4 addresses."""
-    import socket
-    ips = set()
+        errs.append(f"{ENV_FILE} error: {e}")
+    if needed.issubset(env):
+        return
+    # Fallback: read from login shell
     try:
-        hostname = socket.gethostname()
-        for info in socket.getaddrinfo(hostname, None):
-            addr = info[4][0]
-            if addr and not addr.startswith("127.") and "." in addr:
-                ips.add(addr)
-    except Exception:
-        pass
-    # Also try ifconfig as fallback
-    try:
-        out = subprocess.run(
-            ["ifconfig"],
+        r = subprocess.run(
+            ["/bin/zsh", "-l", "-c",
+             "echo O_PW=$OPENCODE_SERVER_PASSWORD"],
             capture_output=True, text=True, timeout=5,
-        ).stdout
-        for line in out.splitlines():
-            parts = line.strip().split()
-            if len(parts) >= 2 and parts[0] == "inet":
-                addr = parts[1]
-                if not addr.startswith("127."):
-                    ips.add(addr)
+        )
+        for line in r.stdout.strip().split("\n"):
+            if line.startswith("O_PW="):
+                env.setdefault("OPENCODE_SERVER_PASSWORD", line.split("=", 1)[1])
     except Exception:
         pass
-    return sorted(ips)
+    print(f"[voice-bridge] Env detection: file_errs={errs}, "
+          f"has_pw={'OPENCODE_SERVER_PASSWORD' in env}, "
+          f"pw_start={env.get('OPENCODE_SERVER_PASSWORD','?')[:8]}",
+          flush=True)
 
+_detect_opencode_env()
 
-def _print_startup_info():
-    protocol = "https" if (CERT_FILE.exists() and KEY_FILE.exists()) else "http"
-    ips = _get_local_ips()
-    
-    print(f"\n{'═' * 60}", flush=True)
-    print(f"  ╔════════════════════════════════════════════╗", flush=True)
-    print(f"  ║        C0D3.5P34K is running              ║", flush=True)
-    print(f"  ╚════════════════════════════════════════════╝", flush=True)
-    print(f"", flush=True)
-    for ip in ips:
-        url = f"{protocol}://{ip}:{PORT}"
-        print(f"  🌐  {url}", flush=True)
-    print(f"", flush=True)
-    print(f"  Open one of the above URLs in Safari on your iPhone.", flush=True)
-    print(f"  Add to Home Screen for full PWA experience.", flush=True)
-    print(f"", flush=True)
-    if protocol == "http":
-        print(f"  ⚠  HTTP only — mic requires HTTPS on iOS Safari.", flush=True)
-        print(f"  Install openssl and restart for HTTPS support.", flush=True)
-        print(f"", flush=True)
-    print(f"{'═' * 60}\n", flush=True)
-
-
-# ── Routes ───────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
-    resp = send_from_directory(str(WEB_DIR), "index.html")
+    resp = send_from_directory(STATIC_DIR, "index.html")
     resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 
 
-@app.route("/<path:filename>")
-def static_files(filename):
-    resp = send_from_directory(str(WEB_DIR), filename)
-    if filename.endswith((".png", ".svg", ".ico", ".webmanifest")):
-        resp.headers["Cache-Control"] = "public, max-age=86400, must-revalidate"
-    else:
-        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    return resp
+@app.route("/echo", methods=["GET", "POST"])
+def echo():
+    """Debug endpoint — echoes back what the client sent."""
+    info = {
+        "method": request.method,
+        "headers": dict(request.headers),
+        "args": dict(request.args),
+        "content_type": request.content_type,
+    }
+    if request.files:
+        info["files"] = {k: {"name": v.filename, "type": v.content_type} for k, v in request.files.items()}
+    if request.form:
+        info["form"] = dict(request.form)
+    try:
+        info["json"] = request.get_json(silent=True)
+    except Exception:
+        pass
+    if request.data:
+        info["body_size"] = len(request.get_data())
+    return jsonify(info)
 
 
 @app.route("/health")
 def health():
     whisper_ok = False
+    opencode_ok = False
     try:
         r = requests.get("http://127.0.0.1:9999/health", timeout=3)
         whisper_ok = r.status_code == 200
     except Exception:
         pass
-    return jsonify({"whisper": whisper_ok, "status": "ok"})
+    try:
+        r = subprocess.run(["opencode", "session", "list"], capture_output=True, timeout=5)
+        opencode_ok = r.returncode == 0
+    except Exception:
+        pass
+    cliclick_ok = os.access(CLICLICK, os.X_OK) if os.path.isfile(CLICLICK) else False
+    return jsonify({"whisper": whisper_ok, "opencode": opencode_ok, "cliclick": cliclick_ok})
+
+
+@app.route("/sessions")
+def list_sessions():
+    try:
+        result = subprocess.run(
+            ["opencode", "session", "list"],
+            capture_output=True, text=True, timeout=10,
+        )
+        sessions = []
+        for line in result.stdout.strip().split("\n"):
+            parts = line.split()
+            if len(parts) >= 2 and not line.startswith("─") and "Session ID" not in line:
+                sessions.append({"id": parts[0], "title": " ".join(parts[1:])})
+        return jsonify({"sessions": sessions[:10], "error": result.stderr.strip() or None})
+    except Exception as e:
+        return jsonify({"sessions": [], "error": str(e)})
 
 
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
+    import sys, os
+
     if "audio" not in request.files and "file" not in request.files:
         return jsonify({"error": "No audio file in request"}), 400
 
     f = request.files.get("audio") or request.files.get("file")
     ct = f.content_type or "unknown"
     fn = f.filename or "unnamed"
+    sz = 0
 
     with tempfile.NamedTemporaryFile(suffix=".in", delete=False) as tmp:
         f.save(tmp.name)
@@ -162,6 +147,7 @@ def transcribe():
         sz = os.path.getsize(raw_path)
 
     print(f"[tr] recv: ct={ct} fn={fn} size={sz}", flush=True)
+    wav_path = raw_path + ".wav"
 
     if sz < 100:
         print(f"[tr] too small ({sz}B), returning silence", flush=True)
@@ -169,11 +155,11 @@ def transcribe():
         except OSError: pass
         return jsonify({"text": "(silence detected)"})
 
-    wav_path = raw_path + ".wav"
     try:
-        subprocess.run(
+        r = subprocess.run(
             ["ffmpeg", "-y", "-i", raw_path,
-             "-ar", "16000", "-ac", "1", "-sample_fmt", "s16", wav_path],
+             "-ar", "16000", "-ac", "1", "-sample_fmt", "s16",
+             wav_path],
             capture_output=True, timeout=15, check=True,
         )
         ws = os.path.getsize(wav_path)
@@ -212,9 +198,58 @@ def transcribe():
             except OSError: pass
 
 
+@app.route("/inject", methods=["POST"])
+def inject():
+    data = request.get_json()
+    if not data or "text" not in data:
+        return jsonify({"ok": False, "error": "No text provided"}), 400
+    text = data["text"].strip()
+    if not text:
+        return jsonify({"ok": False, "error": "Empty text"}), 400
+
+    try:
+        session_id = data.get("session") or None
+        text_arg = text
+
+        if session_id:
+            cmd = ["opencode", "run", "--attach", OPENCODE_ADDR,
+                   "-s", session_id, text_arg]
+        else:
+            cmd = ["opencode", "run", "--attach", OPENCODE_ADDR,
+                   text_arg]
+
+        inject_result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30,
+        )
+
+        if inject_result.returncode != 0 and session_id:
+            fallback_cmd = ["opencode", "run", "--attach", OPENCODE_ADDR, text_arg]
+            inject_result = subprocess.run(
+                fallback_cmd, capture_output=True, text=True, timeout=30,
+            )
+            session_id = "default"
+
+        ok = inject_result.returncode == 0
+        err = inject_result.stderr.strip() or None
+        return jsonify({
+            "ok": ok,
+            "session": session_id,
+            "error": err if not ok else None,
+        }), 200 if ok else 502
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/send", methods=["POST"])
+def send():
+    """Alias for /inject — index.html calls /send."""
+    return inject()
+
+
 @app.route("/paste", methods=["POST"])
 def paste_text():
-    """Copy text to clipboard, Cmd+V at cursor, then Enter."""
+    """Copy text to clipboard, Cmd+V at cursor, then press Enter to submit.
+    Clipboard always works. Paste needs macOS Accessibility for osascript/cliclick."""
     data = request.get_json()
     if not data or "text" not in data:
         return jsonify({"ok": False, "error": "No text provided"}), 400
@@ -228,24 +263,37 @@ def paste_text():
         results["clipboard"] = True
     except Exception as e:
         results["clipboard_error"] = str(e)
-    try:
-        subprocess.run(["osascript", "-e",
-            'tell application "System Events" to keystroke "v" using command down'],
-            timeout=5, check=True)
-        results["paste"] = True
-        subprocess.run(["osascript", "-e",
-            'delay 0.15\ntell application "System Events" to key code 36'],
-            timeout=5, check=True)
-        results["enter"] = True
-    except Exception:
-        pass
+
+    cliclick_available = os.path.isfile(CLICLICK)
+    if cliclick_available:
+        try:
+            subprocess.run([CLICLICK, "kd:cmd", "kp:v", "ku:cmd"], timeout=5, check=True)
+            results["paste"] = True
+            subprocess.run([CLICLICK, "kp:return"], timeout=5, check=True)
+            results["enter"] = True
+        except Exception:
+            pass
+
+    if not results.get("paste"):
+        try:
+            subprocess.run(["osascript", "-e",
+                'tell application "System Events" to keystroke "v" using command down'],
+                timeout=5, check=True)
+            results["paste"] = True
+            subprocess.run(["osascript", "-e",
+                'delay 0.15\ntell application "System Events" to key code 36'],
+                timeout=5, check=True)
+            results["enter"] = True
+        except Exception:
+            results["paste"] = False
+            results["enter"] = False
 
     return jsonify({"ok": results["clipboard"], "text": text, **results})
 
 
 @app.route("/interrupt", methods=["POST"])
 def interrupt():
-    """Press Escape + Ctrl+C to cancel/dismiss."""
+    """Press Escape (+ Ctrl+C) to cancel/dismiss in any app."""
     try:
         subprocess.run(["osascript", "-e",
             'tell application "System Events" to key code 53\n'
@@ -253,80 +301,85 @@ def interrupt():
             'tell application "System Events" to keystroke "c" using control down'],
             timeout=5, check=True)
         return jsonify({"ok": True, "action": "interrupt"})
+    except subprocess.CalledProcessError as e:
+        return jsonify({"ok": False, "error": "osascript failed", "detail": str(e)}), 502
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
-# ── Mouse: Quartz CoreGraphics (no cliclick needed) ─────────────
-
-def _get_mouse_pos():
-    event = Quartz.CGEventCreate(None)
-    return Quartz.CGEventGetLocation(event)
-
-
-def _post_mouse_event(event_type, pos, button=0):
-    ev = Quartz.CGEventCreateMouseEvent(None, event_type, pos, button)
-    Quartz.CGEventPost(Quartz.kCGHIDEventTap, ev)
-
-
 @app.route("/mouse-move", methods=["POST"])
 def mouse_move():
+    """Move mouse RELATIVE to current position by (dx, dy) pixels.
+    
+    Uses CoreGraphics (Quartz) for fast in-process mouse movement
+    instead of subprocessing to cliclick.
+    """
     data = request.get_json(silent=True) or {}
     dx = int(data.get("dx", 0))
     dy = int(data.get("dy", 0))
     if dx == 0 and dy == 0:
         return jsonify({"ok": True})
     try:
-        pos = _get_mouse_pos()
+        event = Quartz.CGEventCreate(None)
+        pos = Quartz.CGEventGetLocation(event)
         new_pos = Quartz.CGPoint(pos.x + dx, pos.y + dy)
-        _post_mouse_event(Quartz.kCGEventMouseMoved, new_pos, 0)
-        return jsonify({"ok": True, "x": int(new_pos.x), "y": int(new_pos.y)})
+        move_event = Quartz.CGEventCreateMouseEvent(
+            None, Quartz.kCGEventMouseMoved, new_pos, 0,
+        )
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, move_event)
+        return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/mouse-click", methods=["POST"])
 def mouse_click():
+    """Send a mouse click at current cursor position."""
     data = request.get_json(silent=True) or {}
     button = data.get("button", "left")
-    is_left = button == "left"
+    cmd = "c:." if button == "left" else "rc:."
     try:
-        pos = _get_mouse_pos()
-        btn = Quartz.kCGMouseButtonLeft if is_left else Quartz.kCGMouseButtonRight
-        down_type = Quartz.kCGEventLeftMouseDown if is_left else Quartz.kCGEventRightMouseDown
-        up_type = Quartz.kCGEventLeftMouseUp if is_left else Quartz.kCGEventRightMouseUp
-        _post_mouse_event(down_type, pos, btn)
-        _post_mouse_event(up_type, pos, btn)
+        subprocess.run([CLICLICK, cmd], timeout=2, check=True)
         return jsonify({"ok": True})
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "error": "cliclick timed out"}), 504
+    except subprocess.CalledProcessError as e:
+        return jsonify({"ok": False, "error": str(e)}), 502
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/mouse-down", methods=["POST"])
 def mouse_down():
-    """Press and hold left button (for drag)."""
+    """Press and hold mouse button (for drag)."""
     try:
-        pos = _get_mouse_pos()
-        _post_mouse_event(Quartz.kCGEventLeftMouseDown, pos, Quartz.kCGMouseButtonLeft)
+        subprocess.run([CLICLICK, "dd:."], timeout=2, check=True)
         return jsonify({"ok": True})
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "error": "cliclick timed out"}), 504
+    except subprocess.CalledProcessError as e:
+        return jsonify({"ok": False, "error": str(e)}), 502
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/mouse-up", methods=["POST"])
 def mouse_up():
-    """Release left button (end drag)."""
+    """Release mouse button (end drag)."""
     try:
-        pos = _get_mouse_pos()
-        _post_mouse_event(Quartz.kCGEventLeftMouseUp, pos, Quartz.kCGMouseButtonLeft)
+        subprocess.run([CLICLICK, "du:."], timeout=2, check=True)
         return jsonify({"ok": True})
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "error": "cliclick timed out"}), 504
+    except subprocess.CalledProcessError as e:
+        return jsonify({"ok": False, "error": str(e)}), 502
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/mouse-scroll", methods=["POST"])
 def mouse_scroll():
-    """Scroll by sending arrow key presses."""
+    """Scroll by sending arrow up/down key presses."""
     data = request.get_json(silent=True) or {}
     dy = data.get("dy", 0)
     if abs(dy) < 10:
@@ -342,18 +395,43 @@ def mouse_scroll():
     return jsonify({"ok": True, "scrolled": steps})
 
 
-# ── Main ─────────────────────────────────────────────────────────
+@app.route("/<path:filename>")
+def static_files(filename):
+    """Serve static assets (icons, manifest, etc)."""
+    resp = send_from_directory(STATIC_DIR, filename)
+    # Allow caching for static assets (iOS needs to cache the icon for PWA)
+    if filename.endswith((".png", ".svg", ".ico", ".webmanifest")):
+        resp.headers["Cache-Control"] = "public, max-age=86400, must-revalidate"
+    else:
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
+
 
 if __name__ == "__main__":
     import ssl as _ssl
-
-    has_ssl = _ensure_cert()
+    import threading
+    port = int(os.environ.get("VOICE_BRIDGE_PORT", 9998))
+    http_port = int(os.environ.get("VOICE_BRIDGE_HTTP_PORT", 9997))
+    cert_file = os.path.expanduser("~/.voice-bridge/cert.pem")
+    key_file = os.path.expanduser("~/.voice-bridge/key.pem")
+    has_ssl = os.path.isfile(cert_file) and os.path.isfile(key_file)
     ssl_ctx = None
     if has_ssl:
         ssl_ctx = _ssl.create_default_context(_ssl.Purpose.CLIENT_AUTH)
-        ssl_ctx.load_cert_chain(str(CERT_FILE), str(KEY_FILE))
-
-    _print_startup_info()
-
-    print(f"[c0d3sp34k] Serving from {WEB_DIR}", flush=True)
-    app.run(host="0.0.0.0", port=PORT, debug=False, ssl_context=ssl_ctx)
+        ssl_ctx.load_cert_chain(cert_file, key_file)
+    
+    import werkzeug.serving as ws
+    th = threading.Thread(
+        target=ws.run_simple,
+        args=("127.0.0.1", http_port, app),
+        kwargs={"use_debugger": False, "use_reloader": False},
+        daemon=True,
+    )
+    th.start()
+    print(f"[voice-bridge] HTTP backend on 127.0.0.1:{http_port} (for tailscale serve)")
+    
+    print(f"[voice-bridge] Starting on 0.0.0.0:{port} {'HTTPS' if has_ssl else 'HTTP'}")
+    print(f"[voice-bridge]   Serving static from {STATIC_DIR}")
+    print(f"[voice-bridge]   Whisper at {WHISPER_URL}")
+    print(f"[voice-bridge]   Tailscale: https://100.127.167.105:{port}")
+    app.run(host="0.0.0.0", port=port, debug=False, ssl_context=ssl_ctx)
